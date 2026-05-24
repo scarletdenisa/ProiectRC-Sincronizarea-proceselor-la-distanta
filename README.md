@@ -53,3 +53,68 @@ python3 client/client.py --host localhost --port 6000 --name clientA
    - `acquire resource1` de la unul dintre clienti si `release resource1`
 5. Trebuie verificat ca serverul raspunde si ca erorile sunt tratate corect
 
+---
+
+## Testare functionalitatii noi: semafoare cu coada de asteptare
+
+### Testul 1 — coada de asteptare si notificare push
+
+Deschide *3 terminale*.
+
+*Terminal 1 - server:*
+docker compose up --build
+
+
+*Terminal 2 - clientA:*
+python3 client/client.py --host localhost --port 6000 --name clientA
+
+Scrie comanda:acquire sem1
+Rezultat asteptat: OK: { "resource": "sem1", "owner": "clientA" }
+
+
+*Terminal 3 — clientB* (in paralel cu clientA): python3 client/client.py --host localhost --port 6000 --name clientB
+
+Scrie comanda (in timp ce clientA detine semaforul): acquire sem1
+
+Rezultat asteptat - clientB nu primeste eroare, ci este pus in coada:
+IN ASTEPTARE: semaforul 'sem1' este detinut de 'clientA'. Pozitia in coada: 1. Veti fi notificat cand primiti accesul.
+
+
+*Inapoi in Terminal 2 — clientA elibereaza semaforul:* release sem1
+
+Rezultat asteptat in *Terminal 3* :
+
+[NOTIFICARE] Acces exclusiv acordat pentru semaforul 'sem1'! Puteti continua.
+
+
+---
+
+### Testul 2 — eliberare automata la deconectare
+
+*Terminal 2 — clientA* dobandeste semaforul: acquire sem1
+
+
+*Terminal 3 — clientB* intra in coada: acquire sem1
+
+
+*Terminal 2* - inchidere clientA fortat cu Ctrl+C (sau scrie exit).
+
+Rezultat asteptat in *Terminal 3* (apare automat):
+[NOTIFICARE] Acces exclusiv acordat pentru semaforul 'sem1'! Puteti continua.
+
+Serverul a detectat deconectarea lui clientA, a eliberat semaforul si l-a acordat lui clientB.
+
+---
+
+### Testul 3 — verificare stare server cu coada vizibila
+
+Cu clientA detinand sem1 si clientB in coada, scrie in orice terminal conectat: status
+
+Rezultat asteptat:
+json
+{
+  "locks": { "sem1": "clientA" },
+  "waiting_queues": { "sem1": ["clientB"] },
+  "barriers": {},
+  "clients": { ... }
+}
