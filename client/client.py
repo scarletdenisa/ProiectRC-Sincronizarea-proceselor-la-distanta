@@ -45,6 +45,7 @@ class SyncClient:
 
     def connect(self) -> None:
         self.socket = socket.create_connection((self.host, self.port), timeout=10)
+        self.socket.settimeout(None)
         self.reader = self.socket.makefile("r", encoding="utf-8")
         self.writer = self.socket.makefile("w", encoding="utf-8")
         print(f"Connected to server at {self.host}:{self.port} as {self.client_id}")
@@ -68,13 +69,8 @@ class SyncClient:
             # Thread de citire in fundal si gestionare notificari push.
 
     def _reader_loop(self) -> None:
-        """Citeste continuu mesaje de la server in fundal.
-
-        Mesajele cu type='notification' sunt afisate imediat.
-        Celelalte mesaje sunt puse in _response_queue.
-        """
-        try:
-            while True:
+        while True:
+            try:
                 line = self.reader.readline()
 
                 if line == "":
@@ -92,9 +88,10 @@ class SyncClient:
                 else:
                     self._response_queue.put(msg)
 
-        except Exception as exc:
-            print(f"\n[EROARE] Thread citire: {exc}")
-            self._response_queue.put(None)
+            except Exception as exc:
+                print(f"\n[EROARE] Thread citire: {exc}")
+                self._response_queue.put(None)
+                break
 
     def _handle_notification(self, msg: Dict[str, Any]) -> None:
         """Afiseaza notificari push primite de la server."""
